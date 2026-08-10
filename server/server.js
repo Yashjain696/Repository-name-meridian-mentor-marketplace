@@ -9,28 +9,27 @@ const Booking = require("./models/Booking");
 
 const app = express();
 
-app.use(cors());
-app.use(express.json());
-
 const PORT = process.env.PORT || 5000;
 
-// ==================== MongoDB Connection ====================
+// =====================================================
+// MIDDLEWARE
+// =====================================================
 
-mongoose
-  .connect(process.env.MONGO_URI)
-  .then(() => {
-    console.log("✅ MongoDB Connected Successfully");
-
-    app.listen(PORT, () => {
-      console.log(`🚀 Server running on http://localhost:${PORT}`);
-    });
+app.use(
+  cors({
+    origin: [
+      "https://repository-name-meridian-mentor-mar.vercel.app",
+    ],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
-  .catch((error) => {
-    console.error("❌ MongoDB Connection Failed:");
-    console.error(error.message);
-  });
+);
 
-// ==================== Test Route ====================
+app.use(express.json());
+
+// =====================================================
+// TEST ROUTE
+// =====================================================
 
 app.get("/", (req, res) => {
   res.json({
@@ -42,14 +41,18 @@ app.get("/", (req, res) => {
   });
 });
 
-// ==================== MENTOR APIs ====================
+// =====================================================
+// MENTOR APIs
+// =====================================================
 
-// Get all mentors
+// GET all mentors
 app.get("/api/mentors", async (req, res) => {
   try {
     const mentors = await Mentor.find();
     res.json(mentors);
   } catch (error) {
+    console.error("Error fetching mentors:", error);
+
     res.status(500).json({
       message: "Failed to fetch mentors",
       error: error.message,
@@ -57,7 +60,7 @@ app.get("/api/mentors", async (req, res) => {
   }
 });
 
-// Add new mentor
+// POST new mentor
 app.post("/api/mentors", async (req, res) => {
   try {
     const mentor = new Mentor(req.body);
@@ -65,6 +68,8 @@ app.post("/api/mentors", async (req, res) => {
 
     res.status(201).json(savedMentor);
   } catch (error) {
+    console.error("Error creating mentor:", error);
+
     res.status(400).json({
       message: "Failed to create mentor",
       error: error.message,
@@ -72,14 +77,18 @@ app.post("/api/mentors", async (req, res) => {
   }
 });
 
-// ==================== MENTEE APIs ====================
+// =====================================================
+// MENTEE APIs
+// =====================================================
 
-// Get all mentees
+// GET all mentees
 app.get("/api/mentees", async (req, res) => {
   try {
     const mentees = await Mentee.find();
     res.json(mentees);
   } catch (error) {
+    console.error("Error fetching mentees:", error);
+
     res.status(500).json({
       message: "Failed to fetch mentees",
       error: error.message,
@@ -87,7 +96,7 @@ app.get("/api/mentees", async (req, res) => {
   }
 });
 
-// Add new mentee
+// POST new mentee
 app.post("/api/mentees", async (req, res) => {
   try {
     const mentee = new Mentee(req.body);
@@ -95,6 +104,8 @@ app.post("/api/mentees", async (req, res) => {
 
     res.status(201).json(savedMentee);
   } catch (error) {
+    console.error("Error creating mentee:", error);
+
     res.status(400).json({
       message: "Failed to create mentee",
       error: error.message,
@@ -102,14 +113,18 @@ app.post("/api/mentees", async (req, res) => {
   }
 });
 
-// ==================== BOOKING APIs ====================
+// =====================================================
+// BOOKING APIs
+// =====================================================
 
-// Get all bookings
+// GET all bookings
 app.get("/api/bookings", async (req, res) => {
   try {
     const bookings = await Booking.find();
     res.json(bookings);
   } catch (error) {
+    console.error("Error fetching bookings:", error);
+
     res.status(500).json({
       message: "Failed to fetch bookings",
       error: error.message,
@@ -117,7 +132,7 @@ app.get("/api/bookings", async (req, res) => {
   }
 });
 
-// Create booking
+// POST create booking
 app.post("/api/bookings", async (req, res) => {
   try {
     const booking = new Booking(req.body);
@@ -125,6 +140,8 @@ app.post("/api/bookings", async (req, res) => {
 
     res.status(201).json(savedBooking);
   } catch (error) {
+    console.error("Error creating booking:", error);
+
     res.status(400).json({
       message: "Failed to create booking",
       error: error.message,
@@ -132,13 +149,16 @@ app.post("/api/bookings", async (req, res) => {
   }
 });
 
-// Update booking status
+// PUT update booking
 app.put("/api/bookings/:id", async (req, res) => {
   try {
     const updatedBooking = await Booking.findOneAndUpdate(
       { id: req.params.id },
       req.body,
-      { new: true, runValidators: true }
+      {
+        new: true,
+        runValidators: true,
+      }
     );
 
     if (!updatedBooking) {
@@ -149,6 +169,8 @@ app.put("/api/bookings/:id", async (req, res) => {
 
     res.json(updatedBooking);
   } catch (error) {
+    console.error("Error updating booking:", error);
+
     res.status(400).json({
       message: "Failed to update booking",
       error: error.message,
@@ -156,7 +178,7 @@ app.put("/api/bookings/:id", async (req, res) => {
   }
 });
 
-// Delete booking
+// DELETE booking
 app.delete("/api/bookings/:id", async (req, res) => {
   try {
     const deletedBooking = await Booking.findOneAndDelete({
@@ -173,9 +195,82 @@ app.delete("/api/bookings/:id", async (req, res) => {
       message: "Booking deleted successfully",
     });
   } catch (error) {
+    console.error("Error deleting booking:", error);
+
     res.status(500).json({
       message: "Failed to delete booking",
       error: error.message,
     });
   }
 });
+
+// =====================================================
+// BACKWARD COMPATIBILITY ROUTES
+// =====================================================
+// Agar frontend abhi /mentors, /mentees, /bookings call kar raha
+// hai to ye routes bhi kaam karenge.
+
+app.get("/mentors", async (req, res) => {
+  try {
+    const mentors = await Mentor.find();
+    res.json(mentors);
+  } catch (error) {
+    res.status(500).json({
+      message: "Failed to fetch mentors",
+      error: error.message,
+    });
+  }
+});
+
+app.get("/mentees", async (req, res) => {
+  try {
+    const mentees = await Mentee.find();
+    res.json(mentees);
+  } catch (error) {
+    res.status(500).json({
+      message: "Failed to fetch mentees",
+      error: error.message,
+    });
+  }
+});
+
+app.get("/bookings", async (req, res) => {
+  try {
+    const bookings = await Booking.find();
+    res.json(bookings);
+  } catch (error) {
+    res.status(500).json({
+      message: "Failed to fetch bookings",
+      error: error.message,
+    });
+  }
+});
+
+// =====================================================
+// MONGODB CONNECTION
+// =====================================================
+
+const startServer = async () => {
+  try {
+    if (!process.env.MONGO_URI) {
+      throw new Error(
+        "MONGO_URI is not defined in environment variables"
+      );
+    }
+
+    await mongoose.connect(process.env.MONGO_URI);
+
+    console.log("✅ MongoDB Connected Successfully");
+
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`🚀 Server running on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error("❌ MongoDB Connection Failed:");
+    console.error(error.message);
+
+    process.exit(1);
+  }
+};
+
+startServer();
