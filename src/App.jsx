@@ -1344,7 +1344,7 @@ export default function App() {
       ]);
 
       if (!mentorsRes.ok || !menteesRes.ok || !bookingsRes.ok) {
-        throw new Error('Backend API request failed. Make sure the server is running on port 5000.');
+        throw new Error('Backend API request failed. Please check the backend server.');
       }
 
       const [mentorsData, menteesData, bookingsData] = await Promise.all([
@@ -1407,7 +1407,7 @@ export default function App() {
         createdAt: new Date().toISOString(),
       };
 
-      const response = await fetch(`${API_BASE}/bookings`, {
+      const response = await fetch(`${API_BASE}/api/bookings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(bookingData),
@@ -1435,7 +1435,7 @@ export default function App() {
 
   const handleUpdateBookingStatus = async (id, status) => {
     try {
-      const response = await fetch(`${API_BASE}/bookings/${id}`, {
+      const response = await fetch(`${API_BASE}/api/bookings/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
@@ -1457,7 +1457,7 @@ export default function App() {
 
   const handleRemoveBooking = async (id) => {
     try {
-      const response = await fetch(`${API_BASE}/bookings/${id}`, { method: 'DELETE' });
+      const response = await fetch(`${API_BASE}/api/bookings/${id}`, { method: 'DELETE' });
       if (!response.ok) {
         const errorBody = await response.json().catch(() => ({}));
         throw new Error(errorBody.message || 'Failed to delete booking.');
@@ -1472,7 +1472,7 @@ export default function App() {
 
   const handleUpdateMentorStatus = async (id, status) => {
     try {
-      const response = await fetch(`${API_BASE}/mentors/${id}/status`, {
+      const response = await fetch(`${API_BASE}/api/mentors/${id}/status`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
@@ -1494,10 +1494,10 @@ export default function App() {
 
   const handleNewMentor = async (mentor) => {
     try {
-      const response = await fetch(`${API_BASE}/mentors`, {
+      const response = await fetch(`${API_BASE}/api/mentors`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...mentor, status: 'active' }),
+        body: JSON.stringify({ ...mentor, status: 'pending' }),
       });
 
       if (!response.ok) {
@@ -1510,7 +1510,7 @@ export default function App() {
       setCurrentMentorId(savedMentor.id);
       localStorage.setItem('meridianMentorId', savedMentor.id);
       setRole('mentor');
-      setToast('Mentor profile created and is now live!');
+      setToast('Mentor application submitted for review!');
       navigateTo('mentorDashboard');
     } catch (error) {
       console.error('❌ Mentor signup failed:', error);
@@ -1527,7 +1527,7 @@ export default function App() {
         joined: new Date().toLocaleString('en-US', { month: 'short', year: 'numeric' }),
       };
 
-      const response = await fetch(`${API_BASE}/mentees`, {
+      const response = await fetch(`${API_BASE}/api/mentees`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(menteeData),
