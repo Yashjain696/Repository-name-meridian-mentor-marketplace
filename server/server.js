@@ -13,24 +13,18 @@ const app = express();
 // CONFIGURATION
 // =====================================================
 
-const PORT = process.env.PORT ;
-
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-});
-
+const PORT = process.env.PORT || 5000;
 
 // =====================================================
 // MIDDLEWARE
 // =====================================================
 
-// Allow requests from Vercel / any frontend
 app.use(cors());
 
 app.use(express.json());
 
 // =====================================================
-// HEALTH / TEST ROUTE
+// HEALTH CHECK
 // =====================================================
 
 app.get("/", (req, res) => {
@@ -145,7 +139,7 @@ app.get("/api/bookings", async (req, res) => {
   }
 });
 
-// POST create booking
+// POST new booking
 app.post("/api/bookings", async (req, res) => {
   try {
     const booking = new Booking(req.body);
@@ -225,18 +219,15 @@ app.delete("/api/bookings/:id", async (req, res) => {
 });
 
 // =====================================================
-// BACKWARD COMPATIBILITY ROUTES
+// BACKWARD COMPATIBILITY GET ROUTES
 // =====================================================
 
-// GET /mentors
 app.get("/mentors", async (req, res) => {
   try {
     const mentors = await Mentor.find();
 
     res.status(200).json(mentors);
   } catch (error) {
-    console.error("Error fetching mentors:", error);
-
     res.status(500).json({
       success: false,
       message: "Failed to fetch mentors",
@@ -245,15 +236,12 @@ app.get("/mentors", async (req, res) => {
   }
 });
 
-// GET /mentees
 app.get("/mentees", async (req, res) => {
   try {
     const mentees = await Mentee.find();
 
     res.status(200).json(mentees);
   } catch (error) {
-    console.error("Error fetching mentees:", error);
-
     res.status(500).json({
       success: false,
       message: "Failed to fetch mentees",
@@ -262,15 +250,12 @@ app.get("/mentees", async (req, res) => {
   }
 });
 
-// GET /bookings
 app.get("/bookings", async (req, res) => {
   try {
     const bookings = await Booking.find();
 
     res.status(200).json(bookings);
   } catch (error) {
-    console.error("Error fetching bookings:", error);
-
     res.status(500).json({
       success: false,
       message: "Failed to fetch bookings",
@@ -305,6 +290,10 @@ const startServer = async () => {
     await mongoose.connect(process.env.MONGO_URI);
 
     console.log("✅ MongoDB Connected Successfully");
+
+    // IMPORTANT:
+    // Server starts ONLY ONCE, after routes are defined
+    // and MongoDB connection succeeds.
 
     app.listen(PORT, "0.0.0.0", () => {
       console.log(`🚀 Server running on port ${PORT}`);

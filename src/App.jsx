@@ -37,7 +37,9 @@ const CATEGORIES = [
 const LANGUAGES = ['English', 'Hindi', 'Tamil', 'Telugu', 'Punjabi', 'Malayalam', 'Urdu'];
 
 // Backend API. Keep this URL for local development. For Vercel, set VITE_API_URL in the frontend environment.
-const API_BASE = import.meta.env.VITE_API_URL || 'https://meridian-backend-9rmo.onrender.com'
+const API_BASE =
+  import.meta.env.VITE_API_URL ||
+  "https://meridian-backend-9rro.onrender.com";
 
 const COLOR_MAP = {
   sky: { bg: 'bg-sky-50', text: 'text-sky-700', ring: 'ring-sky-200' },
