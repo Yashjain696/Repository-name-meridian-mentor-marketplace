@@ -37,7 +37,7 @@ const CATEGORIES = [
 const LANGUAGES = ['English', 'Hindi', 'Tamil', 'Telugu', 'Punjabi', 'Malayalam', 'Urdu'];
 
 // Backend API. Keep this URL for local development. For Vercel, set VITE_API_URL in the frontend environment.
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_BASE = import.meta.env.VITE_API_URL || 'https://meridian-backend-9rmo.onrender.com'
 
 const COLOR_MAP = {
   sky: { bg: 'bg-sky-50', text: 'text-sky-700', ring: 'ring-sky-200' },
@@ -1336,9 +1336,9 @@ export default function App() {
     setApiError('');
     try {
       const [mentorsRes, menteesRes, bookingsRes] = await Promise.all([
-        fetch(`${API_BASE}/mentors`),
-        fetch(`${API_BASE}/mentees`),
-        fetch(`${API_BASE}/bookings`),
+        fetch(`${API_BASE}/api/mentors`),
+        fetch(`${API_BASE}/api/mentees`),
+        fetch(`${API_BASE}/api/bookings`),
       ]);
 
       if (!mentorsRes.ok || !menteesRes.ok || !bookingsRes.ok) {
