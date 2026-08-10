@@ -36,6 +36,9 @@ const CATEGORIES = [
 
 const LANGUAGES = ['English', 'Hindi', 'Tamil', 'Telugu', 'Punjabi', 'Malayalam', 'Urdu'];
 
+// Backend API. Keep this URL for local development. For Vercel, set VITE_API_URL in the frontend environment.
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
 const COLOR_MAP = {
   sky: { bg: 'bg-sky-50', text: 'text-sky-700', ring: 'ring-sky-200' },
   violet: { bg: 'bg-violet-50', text: 'text-violet-700', ring: 'ring-violet-200' },
@@ -855,7 +858,7 @@ function BecomeMentorPage({ onSubmit, navigateTo }) {
       expertise: form.expertise.split(',').map((s) => s.trim()).filter(Boolean),
       price: Number(form.price), languages: form.languages,
       rating: 5.0, sessions: 0, avatarColor: AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)],
-      status: 'pending', slots,
+      status: 'active', slots,
     });
     setSubmitted(true);
   };
@@ -1296,13 +1299,80 @@ function AdminDashboardContent({ tab, mentors, mentees, bookings, onUpdateMentor
 export default function App() {
   const [view, setView] = useState('landing');
   const [navParams, setNavParams] = useState({});
-  const [mentors, setMentors] = useState(SEED_MENTORS);
-  const [mentees, setMentees] = useState(SEED_MENTEES);
-  const [bookings, setBookings] = useState(SEED_BOOKINGS);
+  const [mentors, setMentors] = useState([]);
+  const [mentees, setMentees] = useState([]);
+  const [bookings, setBookings] = useState([]);
   const [role, setRole] = useState('mentee');
-  const [currentMentorId] = useState('m-2');
+  const [currentMentorId, setCurrentMentorId] = useState(null);
   const [bookingTarget, setBookingTarget] = useState(null);
   const [toast, setToast] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [apiError, setApiError] = useState('');
+
+  const normalizeMentor = (m) => ({
+    ...m,
+    id: m.id || m._id,
+    experience: Number(m.experience || 0),
+    price: Number(m.price || 0),
+    rating: Number(m.rating ?? 0),
+    sessions: Number(m.sessions || 0),
+    expertise: Array.isArray(m.expertise) ? m.expertise : [],
+    languages: Array.isArray(m.languages) ? m.languages : [],
+    slots: Array.isArray(m.slots) ? m.slots : [],
+    status: m.status || 'active',
+  });
+
+  const normalizeMentee = (m) => ({
+    ...m,
+    id: m.id || m._id,
+  });
+
+  const normalizeBooking = (b) => ({
+    ...b,
+    id: b.id || b._id,
+  });
+
+  const loadBackendData = async () => {
+    setApiError('');
+    try {
+      const [mentorsRes, menteesRes, bookingsRes] = await Promise.all([
+        fetch(`${API_BASE}/mentors`),
+        fetch(`${API_BASE}/mentees`),
+        fetch(`${API_BASE}/bookings`),
+      ]);
+
+      if (!mentorsRes.ok || !menteesRes.ok || !bookingsRes.ok) {
+        throw new Error('Backend API request failed. Make sure the server is running on port 5000.');
+      }
+
+      const [mentorsData, menteesData, bookingsData] = await Promise.all([
+        mentorsRes.json(),
+        menteesRes.json(),
+        bookingsRes.json(),
+      ]);
+
+      const loadedMentors = mentorsData.map(normalizeMentor);
+      const loadedMentees = menteesData.map(normalizeMentee);
+      const loadedBookings = bookingsData.map(normalizeBooking);
+
+      setMentors(loadedMentors);
+      setMentees(loadedMentees);
+      setBookings(loadedBookings);
+
+      const savedMentorId = localStorage.getItem('meridianMentorId');
+      const matchingMentor = loadedMentors.find((m) => m.id === savedMentorId);
+      setCurrentMentorId(matchingMentor?.id || loadedMentors[0]?.id || null);
+    } catch (error) {
+      console.error('❌ Failed to load backend data:', error);
+      setApiError(error.message || 'Could not connect to the backend.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadBackendData();
+  }, []);
 
   const navigateTo = (v, params = {}) => {
     setView(v);
@@ -1312,42 +1382,183 @@ export default function App() {
 
   const handleRequestBooking = (mentor, slot) => setBookingTarget({ mentor, slot });
 
-  const confirmBooking = (message) => {
-    const { mentor, slot } = bookingTarget;
-    const newBooking = {
-      id: nextId('b'), mentorId: mentor.id, menteeId: 'mt-1',
-      slotLabel: `${slot.day}, ${slot.date} · ${slot.time}`,
-      message: message || 'Looking forward to the session!',
-      status: 'pending', createdAt: 'Just now',
-    };
-    setBookings((prev) => [...prev, newBooking]);
-    setMentors((prev) => prev.map((m) => (m.id === mentor.id ? { ...m, slots: m.slots.map((s) => (s.id === slot.id ? { ...s, booked: true } : s)) } : m)));
-    setBookingTarget(null);
-    setToast('Booking request sent!');
+  const confirmBooking = async (message) => {
+    if (!bookingTarget) return;
+
+    try {
+      const { mentor, slot } = bookingTarget;
+      const mentee = mentees[0];
+
+      if (!mentee) {
+        setToast('Please create a mentee account before booking.');
+        return;
+      }
+
+      const bookingData = {
+        id: nextId('b'),
+        mentorId: mentor.id,
+        menteeId: mentee.id,
+        slotId: slot.id,
+        slotLabel: `${slot.day}, ${slot.date} · ${slot.time}`,
+        message: message || 'Looking forward to the session!',
+        status: 'pending',
+        createdAt: new Date().toISOString(),
+      };
+
+      const response = await fetch(`${API_BASE}/bookings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(bookingData),
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
+        throw new Error(errorBody.message || 'Booking creation failed.');
+      }
+
+      const savedBooking = normalizeBooking(await response.json());
+      setBookings((prev) => [...prev, savedBooking]);
+      setMentors((prev) => prev.map((m) => (
+        m.id === mentor.id
+          ? { ...m, slots: m.slots.map((s) => s.id === slot.id ? { ...s, booked: true } : s) }
+          : m
+      )));
+      setBookingTarget(null);
+      setToast('Booking request sent!');
+    } catch (error) {
+      console.error('❌ Booking failed:', error);
+      setToast(error.message || 'Booking failed.');
+    }
   };
 
-  const handleUpdateBookingStatus = (id, status) => {
-    setBookings((prev) => prev.map((b) => (b.id === id ? { ...b, status } : b)));
-    setToast(status === 'accepted' ? 'Booking accepted' : 'Booking declined');
+  const handleUpdateBookingStatus = async (id, status) => {
+    try {
+      const response = await fetch(`${API_BASE}/bookings/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
+        throw new Error(errorBody.message || 'Failed to update booking.');
+      }
+
+      const updatedBooking = normalizeBooking(await response.json());
+      setBookings((prev) => prev.map((b) => b.id === id ? updatedBooking : b));
+      setToast(status === 'accepted' ? 'Booking accepted' : 'Booking declined');
+    } catch (error) {
+      console.error('❌ Booking update failed:', error);
+      setToast(error.message || 'Failed to update booking.');
+    }
   };
 
-  const handleRemoveBooking = (id) => setBookings((prev) => prev.filter((b) => b.id !== id));
-
-  const handleUpdateMentorStatus = (id, status) => {
-    setMentors((prev) => prev.map((m) => (m.id === id ? { ...m, status } : m)));
-    setToast(status === 'active' ? 'Mentor approved' : 'Mentor suspended');
+  const handleRemoveBooking = async (id) => {
+    try {
+      const response = await fetch(`${API_BASE}/bookings/${id}`, { method: 'DELETE' });
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
+        throw new Error(errorBody.message || 'Failed to delete booking.');
+      }
+      setBookings((prev) => prev.filter((b) => b.id !== id));
+      setToast('Booking deleted');
+    } catch (error) {
+      console.error('❌ Booking delete failed:', error);
+      setToast(error.message || 'Failed to delete booking.');
+    }
   };
 
-  const handleNewMentor = (mentor) => setMentors((prev) => [...prev, mentor]);
+  const handleUpdateMentorStatus = async (id, status) => {
+    try {
+      const response = await fetch(`${API_BASE}/mentors/${id}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
 
-  const handleNewMentee = (form) => {
-    const newMentee = { id: nextId('mt'), name: form.name, email: form.email, joined: 'Aug 2026' };
-    setMentees((prev) => [...prev, newMentee]);
-    navigateTo('browse');
-    setToast('Welcome to Meridian!');
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
+        throw new Error(errorBody.message || 'Mentor status API is not available yet.');
+      }
+
+      const updatedMentor = normalizeMentor(await response.json());
+      setMentors((prev) => prev.map((m) => m.id === id ? updatedMentor : m));
+      setToast(status === 'active' ? 'Mentor approved' : 'Mentor suspended');
+    } catch (error) {
+      console.error('❌ Mentor status update failed:', error);
+      setToast(error.message || 'Failed to update mentor.');
+    }
+  };
+
+  const handleNewMentor = async (mentor) => {
+    try {
+      const response = await fetch(`${API_BASE}/mentors`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...mentor, status: 'active' }),
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
+        throw new Error(errorBody.message || 'Mentor signup failed.');
+      }
+
+      const savedMentor = normalizeMentor(await response.json());
+      setMentors((prev) => [...prev, savedMentor]);
+      setCurrentMentorId(savedMentor.id);
+      localStorage.setItem('meridianMentorId', savedMentor.id);
+      setRole('mentor');
+      setToast('Mentor profile created and is now live!');
+      navigateTo('mentorDashboard');
+    } catch (error) {
+      console.error('❌ Mentor signup failed:', error);
+      setToast(error.message || 'Mentor signup failed.');
+    }
+  };
+
+  const handleNewMentee = async (form) => {
+    try {
+      const menteeData = {
+        id: nextId('mt'),
+        name: form.name,
+        email: form.email,
+        joined: new Date().toLocaleString('en-US', { month: 'short', year: 'numeric' }),
+      };
+
+      const response = await fetch(`${API_BASE}/mentees`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(menteeData),
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
+        throw new Error(errorBody.message || 'Mentee signup failed.');
+      }
+
+      const savedMentee = normalizeMentee(await response.json());
+      setMentees((prev) => [...prev, savedMentee]);
+      setToast('Welcome to Meridian!');
+      navigateTo('browse');
+    } catch (error) {
+      console.error('❌ Mentee signup failed:', error);
+      setToast(error.message || 'Mentee signup failed.');
+    }
   };
 
   const currentMentor = mentors.find((m) => m.id === currentMentorId);
+
+  if (loading) {
+    return (
+      <div style={{ fontFamily: BODY_FONT }} className="min-h-screen bg-slate-50 flex items-center justify-center px-6">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-amber-200 border-t-amber-600 rounded-full animate-spin mx-auto mb-4" />
+          <p className="font-semibold text-slate-900">Connecting to Meridian backend...</p>
+          <p className="text-sm text-slate-500 mt-1">Loading mentors, mentees and bookings from MongoDB.</p>
+        </div>
+      </div>
+    );
+  }
 
   let content;
   if (view === 'mentorDashboard') {
@@ -1378,6 +1589,11 @@ export default function App() {
   return (
     <div style={{ fontFamily: BODY_FONT }} className="min-h-screen bg-white">
       <style>{FONT_IMPORT}</style>
+      {apiError && (
+        <div className="bg-rose-50 border-b border-rose-200 px-6 py-3 text-center text-sm text-rose-700">
+          {apiError} <button onClick={loadBackendData} className="font-semibold underline ml-2">Retry</button>
+        </div>
+      )}
       {content}
       {bookingTarget && <BookingModal mentor={bookingTarget.mentor} slot={bookingTarget.slot} onClose={() => setBookingTarget(null)} onConfirm={confirmBooking} />}
       {toast && <Toast message={toast} onClose={() => setToast(null)} />}
