@@ -20,7 +20,6 @@ const PORT = process.env.PORT || 5000;
 // =====================================================
 
 app.use(cors());
-
 app.use(express.json());
 
 // =====================================================
@@ -58,6 +57,63 @@ app.get("/api/mentors", async (req, res) => {
     });
   }
 });
+// =====================================================
+// UPDATE MENTOR STATUS
+// =====================================================
+
+app.put("/api/mentors/:id/status", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    const allowedStatuses = [
+      "pending",
+      "active",
+      "suspended",
+      "rejected"
+    ];
+
+    if (!allowedStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid mentor status",
+        allowedStatuses
+      });
+    }
+
+    const updatedMentor = await Mentor.findOneAndUpdate(
+      { id: id },
+      { status: status },
+      {
+        new: true,
+        runValidators: true
+      }
+    );
+
+    if (!updatedMentor) {
+      return res.status(404).json({
+        success: false,
+        message: "Mentor not found",
+        id: id
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Mentor status updated successfully",
+      mentor: updatedMentor
+    });
+
+  } catch (error) {
+    console.error("❌ Mentor status update failed:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to update mentor status",
+      error: error.message
+    });
+  }
+});
 
 // POST new mentor
 app.post("/api/mentors", async (req, res) => {
@@ -73,6 +129,57 @@ app.post("/api/mentors", async (req, res) => {
     res.status(400).json({
       success: false,
       message: "Failed to create mentor",
+      error: error.message,
+    });
+  }
+});
+
+// =====================================================
+// UPDATE MENTOR STATUS
+// =====================================================
+
+app.put("/api/mentors/:id/status", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    // Validate status
+    const allowedStatuses = ["pending", "active", "suspended"];
+
+    if (!allowedStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid mentor status",
+        allowedStatuses,
+      });
+    }
+
+    // Find mentor by custom id
+    const updatedMentor = await Mentor.findOneAndUpdate(
+      { id: id },
+      { status: status },
+      {
+        new: true,
+        runValidators: true,
+      }
+    );
+
+    if (!updatedMentor) {
+      return res.status(404).json({
+        success: false,
+        message: "Mentor not found",
+        id,
+      });
+    }
+
+    res.status(200).json(updatedMentor);
+
+  } catch (error) {
+    console.error("❌ Mentor status update failed:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to update mentor status",
       error: error.message,
     });
   }
@@ -290,10 +397,6 @@ const startServer = async () => {
     await mongoose.connect(process.env.MONGO_URI);
 
     console.log("✅ MongoDB Connected Successfully");
-
-    // IMPORTANT:
-    // Server starts ONLY ONCE, after routes are defined
-    // and MongoDB connection succeeds.
 
     app.listen(PORT, "0.0.0.0", () => {
       console.log(`🚀 Server running on port ${PORT}`);

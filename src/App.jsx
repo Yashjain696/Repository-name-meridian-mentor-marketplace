@@ -1344,7 +1344,7 @@ export default function App() {
       ]);
 
       if (!mentorsRes.ok || !menteesRes.ok || !bookingsRes.ok) {
-        throw new Error('Backend API request failed. Please check the backend server.');
+        throw new Error('Backend API request failed. Please check the deployed backend.');
       }
 
       const [mentorsData, menteesData, bookingsData] = await Promise.all([
@@ -1510,7 +1510,7 @@ export default function App() {
       setCurrentMentorId(savedMentor.id);
       localStorage.setItem('meridianMentorId', savedMentor.id);
       setRole('mentor');
-      setToast('Mentor application submitted for review!');
+      setToast('Mentor profile created and is now live!');
       navigateTo('mentorDashboard');
     } catch (error) {
       console.error('❌ Mentor signup failed:', error);
@@ -1521,9 +1521,9 @@ export default function App() {
   const handleNewMentee = async (form) => {
     try {
       const menteeData = {
-        id: nextId('mt'),
-        name: form.name,
-        email: form.email,
+        id: `MNT-${Date.now()}`,
+        name: form.name.trim(),
+        email: form.email.trim().toLowerCase(),
         joined: new Date().toLocaleString('en-US', { month: 'short', year: 'numeric' }),
       };
 
@@ -1535,7 +1535,7 @@ export default function App() {
 
       if (!response.ok) {
         const errorBody = await response.json().catch(() => ({}));
-        throw new Error(errorBody.message || 'Mentee signup failed.');
+        throw new Error(errorBody.error || errorBody.message || `Mentee signup failed (${response.status})`);
       }
 
       const savedMentee = normalizeMentee(await response.json());
