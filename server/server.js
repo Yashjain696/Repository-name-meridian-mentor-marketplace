@@ -6,6 +6,9 @@ require("dotenv").config();
 const Mentor = require("./models/Mentor");
 const Mentee = require("./models/Mentee");
 const Booking = require("./models/Booking");
+const User = require("./models/User");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 
 const app = express();
 
@@ -134,56 +137,6 @@ app.post("/api/mentors", async (req, res) => {
   }
 });
 
-// =====================================================
-// UPDATE MENTOR STATUS
-// =====================================================
-
-app.put("/api/mentors/:id/status", async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { status } = req.body;
-
-    // Validate status
-    const allowedStatuses = ["pending", "active", "suspended"];
-
-    if (!allowedStatuses.includes(status)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid mentor status",
-        allowedStatuses,
-      });
-    }
-
-    // Find mentor by custom id
-    const updatedMentor = await Mentor.findOneAndUpdate(
-      { id: id },
-      { status: status },
-      {
-        new: true,
-        runValidators: true,
-      }
-    );
-
-    if (!updatedMentor) {
-      return res.status(404).json({
-        success: false,
-        message: "Mentor not found",
-        id,
-      });
-    }
-
-    res.status(200).json(updatedMentor);
-
-  } catch (error) {
-    console.error("❌ Mentor status update failed:", error);
-
-    res.status(500).json({
-      success: false,
-      message: "Failed to update mentor status",
-      error: error.message,
-    });
-  }
-});
 
 // =====================================================
 // MENTEE APIs
@@ -220,6 +173,146 @@ app.post("/api/mentees", async (req, res) => {
     res.status(400).json({
       success: false,
       message: "Failed to create mentee",
+      error: error.message,
+    });
+  }
+});
+// =====================================================
+// AUTHENTICATION APIs
+// =====================================================
+
+// REGISTER
+app.post("/api/auth/register", async (req, res) => {
+  try {
+    const { name, email, password, role } = req.body;
+
+    if (!name || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Name, email and password are required",
+      });
+    }
+
+    // Public users can only register as mentee or mentor
+    const userRole = role === "mentor" ? "mentor" : "mentee";
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const existingUser = await User.findOne({
+      email: normalizedEmail,
+    });
+
+    if (existingUser) {
+      return res.status(409).json({
+        success: false,
+        message: "Email already registered",
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    const user = new User({
+      name: name.trim(),
+      email: normalizedEmail,
+      password: hashedPassword,
+      role: userRole,
+    });
+
+    const savedUser = await user.save();
+
+    res.status(201).json({
+      success: true,
+      message: "Account created successfully",
+      user: {
+        id: savedUser._id,
+        name: savedUser.name,
+        email: savedUser.email,
+        role: savedUser.role,
+      },
+    });
+
+  } catch (error) {
+    console.error("❌ Registration failed:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Registration failed",
+      error: error.message,
+    });
+  }
+});
+
+
+// LOGIN
+app.post("/api/auth/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Email and password are required",
+      });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const user = await User.findOne({
+      email: normalizedEmail,
+    });
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email or password",
+      });
+    }
+
+    const passwordMatch = await bcrypt.compare(
+      password,
+      user.password
+    );
+
+    if (!passwordMatch) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email or password",
+      });
+    }
+
+    if (!process.env.JWT_SECRET) {
+      throw new Error("JWT_SECRET is not configured");
+    }
+
+    const token = jwt.sign(
+      {
+        userId: user._id.toString(),
+        role: user.role,
+      },
+      process.env.JWT_SECRET,
+      {
+        expiresIn: "7d",
+      }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Login successful",
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+    });
+
+  } catch (error) {
+    console.error("❌ Login failed:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Login failed",
       error: error.message,
     });
   }
@@ -370,9 +463,158 @@ app.get("/bookings", async (req, res) => {
     });
   }
 });
+app.get("/api/test-auth", (req, res) => {
+  res.json({
+    success: true,
+    message: "AUTH ROUTES FILE IS RUNNING"
+  });
+});
 
 // =====================================================
-// 404 HANDLER
+// AUTHENTICATION APIs
+// =====================================================
+
+// REGISTER
+app.post("/api/auth/register", async (req, res) => {
+  try {
+    const { name, email, password, role } = req.body;
+
+    // Basic validation
+    if (!name || !email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Name, email and password are required",
+      });
+    }
+
+    // Only allowed public roles
+    const userRole = role === "mentor" ? "mentor" : "mentee";
+
+    // Check existing user
+    const existingUser = await User.findOne({
+      email: email.toLowerCase().trim(),
+    });
+
+    if (existingUser) {
+      return res.status(409).json({
+        success: false,
+        message: "Email already registered",
+      });
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    // Create user
+    const user = new User({
+      name: name.trim(),
+      email: email.toLowerCase().trim(),
+      password: hashedPassword,
+      role: userRole,
+    });
+
+    const savedUser = await user.save();
+
+    res.status(201).json({
+      success: true,
+      message: "Account created successfully",
+      user: {
+        id: savedUser._id,
+        name: savedUser.name,
+        email: savedUser.email,
+        role: savedUser.role,
+      },
+    });
+
+  } catch (error) {
+    console.error("❌ Registration failed:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Registration failed",
+      error: error.message,
+    });
+  }
+});
+
+
+// LOGIN
+app.post("/api/auth/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Email and password are required",
+      });
+    }
+
+    // Find user
+    const user = await User.findOne({
+      email: email.toLowerCase().trim(),
+    });
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email or password",
+      });
+    }
+
+    // Check password
+    const passwordMatch = await bcrypt.compare(
+      password,
+      user.password
+    );
+
+    if (!passwordMatch) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid email or password",
+      });
+    }
+
+    // Create JWT
+    if (!process.env.JWT_SECRET) {
+      throw new Error("JWT_SECRET is not configured");
+    }
+
+    const token = jwt.sign(
+      {
+        userId: user._id.toString(),
+        role: user.role,
+      },
+      process.env.JWT_SECRET,
+      {
+        expiresIn: "7d",
+      }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Login successful",
+      token,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      },
+    });
+
+  } catch (error) {
+    console.error("❌ Login failed:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Login failed",
+      error: error.message,
+    });
+  }
+});
+// =====================================================
+// 404 HANDLER - MUST BE LAST
 // =====================================================
 
 app.use((req, res) => {
